@@ -7,17 +7,23 @@ import com.ctre.phoenix.motorcontrol.can.TalonSRX;
 import com.ctre.phoenix.motorcontrol.can.VictorSPX;
 import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+
+import com.kauailabs.navx.IMUProtocol.GyroUpdate;
 import com.kauailabs.navx.frc.*;
 import com.ctre.phoenix.motorcontrol.InvertType;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import com.ctre.phoenix.motorcontrol.can.*;
+import edu.wpi.first.wpilibj.AnalogInput;
 
 public class Robot extends TimedRobot {
 	/** Hardware, either Talon could be a Victor */
 	//VictorSPX _leftMaster = new VictorSPX(4);
 	//VictorSPX _rightMaster = new VictorSPX(5);
+	private static final int kUltrasonicPort = 0;
+	private final AnalogInput m_ultrasonic = new AnalogInput(kUltrasonicPort);
 	WPI_TalonSRX _frontLeftMotor = new WPI_TalonSRX(3);
+	
 	WPI_TalonSRX _frontRightMotor = new WPI_TalonSRX(6);
 	Joystick _gamepad = new Joystick(0);
 	WPI_VictorSPX _leftSlave1 = new WPI_VictorSPX(4);
@@ -47,8 +53,8 @@ public class Robot extends TimedRobot {
 		_rightSlave1.follow(_frontRightMotor);
 		
 		/* Set Neutral mode */
-		_frontLeftMotor.setNeutralMode(NeutralMode.Brake);
-		_frontRightMotor.setNeutralMode(NeutralMode.Brake);
+		_frontLeftMotor.setNeutralMode(NeutralMode.Coast);
+		_frontRightMotor.setNeutralMode(NeutralMode.Coast);
 		
 		/* Configure output direction */
 		_frontLeftMotor.setInverted(false); // <<<<<< Adjust this until robot drives forward when stick is forward
@@ -56,7 +62,7 @@ public class Robot extends TimedRobot {
 		_leftSlave1.setInverted(InvertType.FollowMaster);
 		
 		_rightSlave1.setInverted(InvertType.FollowMaster);
-		System.out.println("This is Arcade Drive using Arbitrary Feed Forward.");
+		System.out.println("drive");
 	}
 	
 	@Override
@@ -64,23 +70,37 @@ public class Robot extends TimedRobot {
 		/* Gamepad processing */
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
-		boolean constspeed = _gamepad.getTriggerPressed();
+
+
+		boolean trigger = _gamepad.getTrigger();
 		
 				
 		forward = Deadband(forward);
 		turn = Deadband(turn);
-		/*
-		if (constspeed) {
-			_drive.arcadeDrive
+
+		if (trigger==true) {
+			/*
+			if (forward > fowardSpeed) {
+				forward = fowardSpeed;
+			}else if (forward < -fowardSpeed) {
+				forward = -fowardSpeed;
+			}else {
+				forward = 0;
+			}
+			if (turn > turnSpeed) {
+				turn = turnSpeed;
+			}else if (turn < -turnSpeed) {
+				turn = -turnSpeed;
+			}else {
+				turn = 0;
+			}
+			*/
+			forward = forward*0.4;
+			turn = turn*0.4;
 		}
-		*/
 
 		/* Arcade Drive using PercentOutput along with Arbitrary Feed Forward supplied by turn */
 		_drive.arcadeDrive(turn, forward);
-		System.out.print(turn);
-		System.out.print(" ");
-		System.out.println(forward);
-
 	}
 
 	/** Deadband 5 percent, used on the gamepad */
