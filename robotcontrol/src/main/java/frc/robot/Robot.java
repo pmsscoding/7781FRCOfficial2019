@@ -20,21 +20,20 @@ public class Robot extends TimedRobot {
 	/** Hardware, either Talon could be a Victor */
 	//VictorSPX _leftMaster = new VictorSPX(4);
 	//VictorSPX _rightMaster = new VictorSPX(5);
-	private static final int kUltrasonicPort = 0;
-	private final AnalogInput m_ultrasonic = new AnalogInput(kUltrasonicPort);
 	WPI_TalonSRX _frontLeftMotor = new WPI_TalonSRX(3);
-	
 	WPI_TalonSRX _frontRightMotor = new WPI_TalonSRX(6);
+	
 	Joystick _gamepad = new Joystick(0);
 	WPI_VictorSPX _leftSlave1 = new WPI_VictorSPX(4);
 	WPI_VictorSPX _rightSlave1 = new WPI_VictorSPX(5);
 	DifferentialDrive _drive = new DifferentialDrive(_frontLeftMotor, _frontRightMotor);
+	
+	private static final int kUltrasonicPort = 0;
+	private final AnalogInput m_ultrasonic = new AnalogInput(kUltrasonicPort);
 
 	@Override
 	public void robotInit() {
-    CameraServer.getInstance().startAutomaticCapture();
-
-
+    		CameraServer.getInstance().startAutomaticCapture();
 		/* Not used in this project */
 	}
 	
@@ -45,7 +44,6 @@ public class Robot extends TimedRobot {
 		_frontRightMotor.configFactoryDefault();
 		_leftSlave1.configFactoryDefault();
 		_rightSlave1.configFactoryDefault();
-		
 
 		/* Factory Default all hardware to prevent unexpected behaviour */
 		_leftSlave1.follow(_frontLeftMotor);
@@ -70,33 +68,15 @@ public class Robot extends TimedRobot {
 		/* Gamepad processing */
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
-
-
 		boolean trigger = _gamepad.getTrigger();
-		
-				
+		double sensitivity = 0.4
+			
 		forward = Deadband(forward);
 		turn = Deadband(turn);
 
-		if (trigger==true) {
-			/*
-			if (forward > fowardSpeed) {
-				forward = fowardSpeed;
-			}else if (forward < -fowardSpeed) {
-				forward = -fowardSpeed;
-			}else {
-				forward = 0;
-			}
-			if (turn > turnSpeed) {
-				turn = turnSpeed;
-			}else if (turn < -turnSpeed) {
-				turn = -turnSpeed;
-			}else {
-				turn = 0;
-			}
-			*/
-			forward = forward*0.4;
-			turn = turn*0.4;
+		if (trigger) {
+			forward *= sensitivity;
+			turn *= sensitivity;
 		}
 
 		/* Arcade Drive using PercentOutput along with Arbitrary Feed Forward supplied by turn */
