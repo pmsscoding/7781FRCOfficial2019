@@ -1,5 +1,10 @@
 package frc.robot;
 
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableEntry;
+import edu.wpi.first.networktables.NetworkTableInstance;
+
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.DemandType;
@@ -40,10 +45,18 @@ public class Robot extends TimedRobot {
 	double I = 0.05;
 	double D = 0.05;
 	AHRS ahrs;
+
+	//networktablestuff
+	NetworkTableEntry x;
+	
 	
 
 	@Override
 	public void robotInit() {
+
+		NetworkTableInstance inst=NetworkTableInstance.getDefault();
+		NetworkTable table = inst.getTable("SmartDashBoard");
+		x=table.getEntry("yeet");
     		CameraServer.getInstance().startAutomaticCapture();
 		try {
 			ahrs = new AHRS(Port.kUSB1);
@@ -81,7 +94,9 @@ public class Robot extends TimedRobot {
 	}
 	
 	@Override
-	public void teleopPeriodic() {		
+	public void teleopPeriodic() {
+		double xD=x.getDouble(-1);
+		System.out.println(xD);		
 		/* Gamepad processing */
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
