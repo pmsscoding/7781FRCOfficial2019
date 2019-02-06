@@ -1,21 +1,18 @@
 package frc.robot;
-
-import edu.wpi.first.wpilibj.TimedRobot;
-import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.Timer; 
+import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
-
+import edu.wpi.first.wpilibj.I2C;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
-import com.ctre.phoenix.motorcontrol.ControlMode;
-import com.ctre.phoenix.motorcontrol.DemandType;
-import com.ctre.phoenix.motorcontrol.can.TalonSRX;
-import com.ctre.phoenix.motorcontrol.can.VictorSPX;
 import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.Servo;
 import edu.wpi.first.wpilibj.SerialPort;
 import com.kauailabs.navx.IMUProtocol.GyroUpdate;
 import com.kauailabs.navx.frc.AHRS;
+
 import com.kauailabs.navx.frc.*;
 import com.ctre.phoenix.motorcontrol.InvertType;
 import edu.wpi.first.wpilibj.TimedRobot;
@@ -23,14 +20,17 @@ import edu.wpi.first.wpilibj.SerialPort.Port;
 import edu.wpi.first.wpilibj.Joystick;
 import com.ctre.phoenix.motorcontrol.can.*;
 import edu.wpi.first.wpilibj.AnalogInput;
+import edu.wpi.first.wpilibj.Compressor;
+import edu.wpi.first.wpilibj.DoubleSolenoid;
+
 
 public class Robot extends TimedRobot {
 	/** Hardware, either Talon could be a Victor */
-	//VictorSPX _leftMaster = new VictorSPX(4);
-	//VictorSPX _rightMaster = new VictorSPX(5);
 	WPI_TalonSRX _frontLeftMotor = new WPI_TalonSRX(3);
 	WPI_TalonSRX _frontRightMotor = new WPI_TalonSRX(6);
 	Joystick _gamepad = new Joystick(0);
+	Servo _leftServo = new Servo(0);
+	Servo _rightServo = new Servo(1);
 	WPI_VictorSPX _leftSlave1 = new WPI_VictorSPX(4);
 	WPI_VictorSPX _rightSlave1 = new WPI_VictorSPX(5);
 	DifferentialDrive _drive = new DifferentialDrive(_frontLeftMotor, _frontRightMotor);
@@ -45,18 +45,18 @@ public class Robot extends TimedRobot {
 	double I = 0.05;
 	double D = 0.05;
 	AHRS ahrs;
+	//Networktable variables
+	NetworkTableEntry xEntry;
+	NetworkTableEntry yEntry;
+	double yeet;
 
-	//networktablestuff
-	NetworkTableEntry x;
-	
+	//pnematic control
+	Compressor c = new Compressor(0);
+	DoubleSolenoid DoubleSole = new DoubleSolenoid(0, 1);
 	
 
 	@Override
 	public void robotInit() {
-
-		NetworkTableInstance inst=NetworkTableInstance.getDefault();
-		NetworkTable table = inst.getTable("SmartDashBoard");
-		x=table.getEntry("yeet");
     		CameraServer.getInstance().startAutomaticCapture();
 		try {
 			ahrs = new AHRS(Port.kUSB1);
@@ -64,19 +64,23 @@ public class Robot extends TimedRobot {
 			System.out.println("navx gyro error");
 		}
 		/* Not used in this project */
+
+		
+		System.out.println("omgealul duckXD");
 	}
 	
 	@Override
 	public void teleopInit(){
+
+
 		/* Ensure motor output is neutral during init */
 		_frontLeftMotor.configFactoryDefault();
 		_frontRightMotor.configFactoryDefault();
 		_leftSlave1.configFactoryDefault();
 		_rightSlave1.configFactoryDefault();
 
-		/* Factory Default all hardware to prevent unexpected behaviour */
+		/*follow other motor*/
 		_leftSlave1.follow(_frontLeftMotor);
-		
 		_rightSlave1.follow(_frontRightMotor);
 		
 		/* Set Neutral mode */
@@ -91,56 +95,113 @@ public class Robot extends TimedRobot {
 		_rightSlave1.setInverted(InvertType.FollowMaster);
 		System.out.println("drive");
 		setangle = ahrs.getYaw();
+		c.setClosedLoopControl(false);
 	}
 	
 	@Override
 	public void teleopPeriodic() {
-		double xD=x.getDouble(-1);
-		System.out.println(xD);		
-		/* Gamepad processing */
+		NetworkTableInstance inst =NetworkTableInstance.getDefault();
+		NetworkTable table = inst.getTable("Shuffleboard");
+		xEntry=table.getEntry("yeet");		
+		
+		/* Gamepad processing */	
+		boolean valveopen = _gamepad.getRawButton(5);
+		boolean valveclose = _gamepad.getRawButton(3);
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
 		boolean trigger = _gamepad.getTrigger();
+		boolean toptrigger = _gamepad.getTop();
 		double sensitivity =1-( _gamepad.getThrottle() + 1)/2;
-		System.out.println(sensitivity);
+		boolean valveoff = _gamepad.getRawButtonPressed(4);
 
-		
-		//gyro pid processing
-		GyroPID();
-		
-		boolean angletrigger = _gamepad.getTop();
-		if (angletrigger) {
-			System.out.println(ahrs.getYaw());
-			setangle = ahrs.getYaw();
-		}
+
+        //status
+		boolean compressorstatus = false;
+		boolean autoadjust = false;
+
+		//solenoid
+		if (valveopen) {
+			DoubleSole.set(DoubleSolenoid.Value.kReverse);
 			
+
+			System.out.println("valve open");
+
+		}
+		if (valveclose) {
+			DoubleSole.set(DoubleSolenoid.Value.kForward);
+			System.out.println("valve close");
+		}
+		if (valveoff) {
+			DoubleSole.set(DoubleSolenoid.Value.kOff);
+		}
+
+
+		/* servo arm control */
+		_rightServo.setAngle(0);
+		_leftServo.setAngle(0);
+
+		//compressor control
+		if (trigger) {
+			if (compressorstatus) {
+				compressorstatus = false;
+				System.out.println("compressor off");
+				c.setClosedLoopControl(false);
+			}
+			if (compressorstatus == false) {
+				compressorstatus = true;
+				System.out.println("compressor on");
+				c.setClosedLoopControl(true);
+			}
+		}
+		/*
+		if (compressorstatus == true) {
+			c.setClosedLoopControl(true);
+			System.out.println("compressor on");
+		}
+		if (compressorstatus == false) {
+			c.setClosedLoopControl(false);
+			System.out.println("compressor off");
+		}
+		if (c.getPressureSwitchValue()){
+			c.setClosedLoopControl(false);
+		}
+		*/
+		
+		/*driving logic*/
 		forward = Deadband(forward);
 		turn = Deadband(turn);
-		
+		forward *= sensitivity;
+		turn *= sensitivity;
 
-		if (trigger) {
-			if (forward>0.45|turn>0.45) {
-				while (forward>0.45) {
-					forward = forward*0.9;
-				}
-				while (turn>0.45){
-					turn = turn*0.9;
-				}
+		//gyro pid processing
+		if (toptrigger){
+			if(autoadjust == true) {
+				autoadjust = false;
 			}
-			if (forward<0.45 & turn<0.45){
-				forward *= sensitivity;
-				turn *= sensitivity;
+			if(autoadjust == false) {
+				autoadjust = true;
 			}
 		}
-		
-		_drive.arcadeDrive(turn, forward);
-	    }
+		if (autoadjust){
+			System.out.println("gyro on");
+			GyroPID();
+		}
+		if (autoadjust == false){
+			System.out.println("gyro off");
+			setangle = ahrs.getYaw();
+			rcw = 0;
+		}
+
+		_drive.arcadeDrive(turn+rcw, forward);
+		}
+
 	
 
 	/** Deadband 5 percent, used on the gamepad */
+	
 	double Deadband(double value) {
 		/* Upper deadband */
-		if (value >= +0.075) 
+		if (value >= +0.075)    
 			return value;
 		
 		/* Lower deadband */
@@ -149,6 +210,9 @@ public class Robot extends TimedRobot {
 		
 		/* Outside deadband */
 		return 0;
+	}
+	public void driveForSetDistance() {
+		
 	}
 	public void GyroPID(){
 
@@ -163,6 +227,12 @@ public class Robot extends TimedRobot {
 
 		}
 		derivative = (difference - this.previous_error)/0.02;
-		this.rcw = P*difference + I*this.integral - D*derivative;
+		if (difference > 90 || difference < -90) {
+			this.rcw = 0.7;
+		}else{
+			this.rcw = P*difference + I*this.integral - D*derivative;
+
+		}
+		
 	}
 }
