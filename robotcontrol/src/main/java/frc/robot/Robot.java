@@ -1,7 +1,10 @@
 package frc.robot;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.wpilibj.TimedRobot;
-import edu.wpi.first.wpilibj.Timer; 
+import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.Counter.Mode;
+import edu.wpi.first.wpilibj.Counter.Mode;
+import edu.wpi.first.wpilibj.Counter.Mode;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.I2C;
@@ -53,6 +56,7 @@ public class Robot extends TimedRobot {
 	//pnematic control
 	Compressor c = new Compressor(0);
 	DoubleSolenoid DoubleSole = new DoubleSolenoid(0, 1);
+	boolean triggerStatus;
 	
 
 	@Override
@@ -68,16 +72,15 @@ public class Robot extends TimedRobot {
 		
 		System.out.println("omgealul duckXD");
 	}
-	
+
 	@Override
 	public void teleopInit(){
-
-
 		/* Ensure motor output is neutral during init */
 		_frontLeftMotor.configFactoryDefault();
 		_frontRightMotor.configFactoryDefault();
 		_leftSlave1.configFactoryDefault();
 		_rightSlave1.configFactoryDefault();
+		
 
 		/*follow other motor*/
 		_leftSlave1.follow(_frontLeftMotor);
@@ -97,7 +100,8 @@ public class Robot extends TimedRobot {
 		setangle = ahrs.getYaw();
 		c.setClosedLoopControl(false);
 	}
-	
+	boolean Mode = false;
+	boolean compressorstatus = false;
 	@Override
 	public void teleopPeriodic() {
 		NetworkTableInstance inst =NetworkTableInstance.getDefault();
@@ -116,14 +120,12 @@ public class Robot extends TimedRobot {
 
 
         //status
-		boolean compressorstatus = false;
+		
 		boolean autoadjust = false;
 
-		//solenoid
-		if (valveopen) {
-			DoubleSole.set(DoubleSolenoid.Value.kReverse);
-			
-
+		//solenoid control
+		if (valveopen) {  //if button 5 is pressed, SUCC
+			DoubleSole.set(DoubleSolenoid.Value.kReverse); 
 			System.out.println("valve open");
 
 		}
@@ -135,23 +137,44 @@ public class Robot extends TimedRobot {
 			DoubleSole.set(DoubleSolenoid.Value.kOff);
 		}
 
-
 		/* servo arm control */
 		_rightServo.setAngle(0);
 		_leftServo.setAngle(0);
 
+		
 		//compressor control
-		if (trigger) {
+		if (trigger == true && Mode == false) { //1 press for on off
+			System.out.println("true trigger, false mode");
 			if (compressorstatus) {
 				compressorstatus = false;
 				System.out.println("compressor off");
 				c.setClosedLoopControl(false);
 			}
-			if (compressorstatus == false) {
+			else if (compressorstatus == false) {
 				compressorstatus = true;
 				System.out.println("compressor on");
 				c.setClosedLoopControl(true);
 			}
+			Mode = true;
+		}else if (trigger == false && Mode == true) {
+			System.out.println("false trigger true mode");
+	/*		if (compressorstatus) {
+				compressorstatus = false;
+				System.out.println("compressor off");
+				c.setClosedLoopControl(false);
+			}
+			else if (compressorstatus == false) {
+				compressorstatus = true;
+				System.out.println("compressor on");
+				c.setClosedLoopControl(true);
+			}*/
+			Mode = false;
+			
+		}
+		
+
+		if (triggerStatus) {
+			
 		}
 		/*
 		if (compressorstatus == true) {
@@ -162,11 +185,11 @@ public class Robot extends TimedRobot {
 			c.setClosedLoopControl(false);
 			System.out.println("compressor off");
 		}
+		
+		*/
 		if (c.getPressureSwitchValue()){
 			c.setClosedLoopControl(false);
 		}
-		*/
-		
 		/*driving logic*/
 		forward = Deadband(forward);
 		turn = Deadband(turn);
@@ -183,11 +206,11 @@ public class Robot extends TimedRobot {
 			}
 		}
 		if (autoadjust){
-			System.out.println("gyro on");
+			//System.out.println("gyro on");
 			GyroPID();
 		}
 		if (autoadjust == false){
-			System.out.println("gyro off");
+			//System.out.println("gyro off");
 			setangle = ahrs.getYaw();
 			rcw = 0;
 		}
