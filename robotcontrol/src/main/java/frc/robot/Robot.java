@@ -38,9 +38,6 @@ public class Robot extends TimedRobot {
 	WPI_VictorSPX _rightSlave1 = new WPI_VictorSPX(5);
 	DifferentialDrive _drive = new DifferentialDrive(_frontLeftMotor, _frontRightMotor);
 	
-	private static final int kUltrasonicPort = 0;
-	private final AnalogInput m_ultrasonic = new AnalogInput(kUltrasonicPort);
-	
 	//GYRO and PID setting
 	double setangle = 0;
 	double integral, previous_error, rcw, derivative = 0;
@@ -53,7 +50,7 @@ public class Robot extends TimedRobot {
 	NetworkTableEntry yEntry;
 	double yeet;
 
-	//pnematic control
+	//pneumatic control
 	Compressor c = new Compressor(0);
 	DoubleSolenoid DoubleSole = new DoubleSolenoid(0, 1);
 	boolean triggerStatus;
@@ -67,12 +64,7 @@ public class Robot extends TimedRobot {
 		} catch(RuntimeException ex) {
 			System.out.println("navx gyro error");
 		}
-		/* Not used in this project */
-
-		
-		System.out.println("omgealul duckXD");
 	}
-
 	@Override
 	public void teleopInit(){
 		/* Ensure motor output is neutral during init */
@@ -81,7 +73,6 @@ public class Robot extends TimedRobot {
 		_leftSlave1.configFactoryDefault();
 		_rightSlave1.configFactoryDefault();
 		
-
 		/*follow other motor*/
 		_leftSlave1.follow(_frontLeftMotor);
 		_rightSlave1.follow(_frontRightMotor);
@@ -94,12 +85,12 @@ public class Robot extends TimedRobot {
 		_frontLeftMotor.setInverted(false); // <<<<<< Adjust this until robot drives forward when stick is forward
 		_frontRightMotor.setInverted(true); // <<<<<< Adjust this until robot drives forward when stick is forward
 		_leftSlave1.setInverted(InvertType.FollowMaster);
-		
 		_rightSlave1.setInverted(InvertType.FollowMaster);
 		System.out.println("drive");
 		setangle = ahrs.getYaw();
 		c.setClosedLoopControl(false);
 	}
+	
 	boolean Mode = false;
 	boolean compressorstatus = false;
 	@Override
@@ -108,88 +99,53 @@ public class Robot extends TimedRobot {
 		NetworkTable table = inst.getTable("Shuffleboard");
 		xEntry=table.getEntry("yeet");		
 		
-		/* Gamepad processing */	
-		boolean valveopen = _gamepad.getRawButton(5);
-		boolean valveclose = _gamepad.getRawButton(3);
+		// Gamepad processing	
+		boolean valveOpen = _gamepad.getRawButton(5);
+		boolean valveClose = _gamepad.getRawButton(3);
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
 		boolean trigger = _gamepad.getTrigger();
 		boolean toptrigger = _gamepad.getTop();
 		double sensitivity =1-( _gamepad.getThrottle() + 1)/2;
-		boolean valveoff = _gamepad.getRawButtonPressed(4);
-
-
-        //status
+		boolean valveOff = _gamepad.getRawButtonPressed(4);
 		
+		// status
 		boolean autoadjust = false;
 
 		//solenoid control
-		if (valveopen) {  //if button 5 is pressed, SUCC
+		if (valveOpen) {
 			DoubleSole.set(DoubleSolenoid.Value.kReverse); 
 			System.out.println("valve open");
-
 		}
-		if (valveclose) {
+		if (valveClose) {
 			DoubleSole.set(DoubleSolenoid.Value.kForward);
 			System.out.println("valve close");
 		}
-		if (valveoff) {
+		if (valveOff) {
 			DoubleSole.set(DoubleSolenoid.Value.kOff);
 		}
 
-		/* servo arm control */
+		// servo arm control
 		_rightServo.setAngle(0);
 		_leftServo.setAngle(0);
 
-		
-		//compressor control
+		// compressor control
 		if (trigger == true && Mode == false) { //1 press for on off
-			System.out.println("true trigger, false mode");
 			if (compressorstatus) {
 				compressorstatus = false;
-				System.out.println("compressor off");
 				c.setClosedLoopControl(false);
-			}
-			else if (compressorstatus == false) {
+			} else if (compressorstatus == false) {
 				compressorstatus = true;
-				System.out.println("compressor on");
 				c.setClosedLoopControl(true);
 			}
 			Mode = true;
 		}else if (trigger == false && Mode == true) {
-			System.out.println("false trigger true mode");
-	/*		if (compressorstatus) {
-				compressorstatus = false;
-				System.out.println("compressor off");
-				c.setClosedLoopControl(false);
-			}
-			else if (compressorstatus == false) {
-				compressorstatus = true;
-				System.out.println("compressor on");
-				c.setClosedLoopControl(true);
-			}*/
 			Mode = false;
-			
 		}
-		
-
-		if (triggerStatus) {
-			
-		}
-		/*
-		if (compressorstatus == true) {
-			c.setClosedLoopControl(true);
-			System.out.println("compressor on");
-		}
-		if (compressorstatus == false) {
-			c.setClosedLoopControl(false);
-			System.out.println("compressor off");
-		}
-		
-		*/
 		if (c.getPressureSwitchValue()){
 			c.setClosedLoopControl(false);
 		}
+		
 		/*driving logic*/
 		forward = Deadband(forward);
 		turn = Deadband(turn);
@@ -206,56 +162,39 @@ public class Robot extends TimedRobot {
 			}
 		}
 		if (autoadjust){
-			//System.out.println("gyro on");
 			GyroPID();
 		}
 		if (autoadjust == false){
-			//System.out.println("gyro off");
 			setangle = ahrs.getYaw();
 			rcw = 0;
 		}
-
 		_drive.arcadeDrive(turn+rcw, forward);
-		}
-
 	
-
-	/** Deadband 5 percent, used on the gamepad */
-	
+	// Deadband 5 percent, used on the gamepad
 	double Deadband(double value) {
 		/* Upper deadband */
-		if (value >= +0.075)    
-			return value;
+		if (value >= +0.075) { return value; }
 		
 		/* Lower deadband */
-		if (value <= -0.075)
-			return value;
+		if (value <= -0.075) { return value; }
 		
 		/* Outside deadband */
 		return 0;
 	}
-	public void driveForSetDistance() {
-		
-	}
+	
 	public void GyroPID(){
-
 		double difference = setangle - ahrs.getYaw();
-		
 		this.previous_error = difference;
 		if (difference < 60 && difference > -60){
 			this.integral +=(difference*0.02);
-
-		}else{
+		} else {
 			this.integral = 0;
-
 		}
 		derivative = (difference - this.previous_error)/0.02;
 		if (difference > 90 || difference < -90) {
 			this.rcw = 0.7;
-		}else{
+		 }else {
 			this.rcw = P*difference + I*this.integral - D*derivative;
-
 		}
-		
 	}
 }
