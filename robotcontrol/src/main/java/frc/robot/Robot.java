@@ -24,6 +24,7 @@ import edu.wpi.first.wpilibj.Joystick;
 import com.ctre.phoenix.motorcontrol.can.*;
 import edu.wpi.first.wpilibj.AnalogInput;
 import edu.wpi.first.wpilibj.Compressor;
+import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
 
 
@@ -37,6 +38,14 @@ public class Robot extends TimedRobot {
 	WPI_VictorSPX _leftSlave1 = new WPI_VictorSPX(4);
 	WPI_VictorSPX _rightSlave1 = new WPI_VictorSPX(5);
 	DifferentialDrive _drive = new DifferentialDrive(_frontLeftMotor, _frontRightMotor);
+	
+	//encoder
+	
+	Encoder EncRight = new Encoder(0, 1, false, Encoder.EncodingType.k4X);
+	
+	Encoder EncLeft = new Encoder(2, 3, true, Encoder.EncodingType.k4X);
+	
+
 	
 	//GYRO and PID setting
 	double setangle = 0;
@@ -64,6 +73,8 @@ public class Robot extends TimedRobot {
 		} catch(RuntimeException ex) {
 			System.out.println("navx gyro error");
 		}
+		EncLeft.reset();
+		EncRight.reset();
 	}
 	@Override
 	public void teleopInit(){
@@ -72,6 +83,8 @@ public class Robot extends TimedRobot {
 		_frontRightMotor.configFactoryDefault();
 		_leftSlave1.configFactoryDefault();
 		_rightSlave1.configFactoryDefault();
+		
+		//encoder
 		
 		/*follow other motor*/
 		_leftSlave1.follow(_frontLeftMotor);
@@ -93,6 +106,9 @@ public class Robot extends TimedRobot {
 	
 	boolean Mode = false;
 	boolean compressorstatus = false;
+	boolean SoleMode =false;
+	boolean pistonstatus = false;
+
 	@Override
 	public void teleopPeriodic() {
 		NetworkTableInstance inst =NetworkTableInstance.getDefault();
@@ -100,8 +116,8 @@ public class Robot extends TimedRobot {
 		xEntry=table.getEntry("yeet");		
 		
 		// Gamepad processing	
-		boolean valveOpen = _gamepad.getRawButton(5);
-		boolean valveClose = _gamepad.getRawButton(3);
+		boolean Compressor = _gamepad.getRawButton(5);
+		boolean encoderReset = _gamepad.getRawButton(3);
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
 		boolean trigger = _gamepad.getTrigger();
@@ -109,28 +125,19 @@ public class Robot extends TimedRobot {
 		double sensitivity =1-( _gamepad.getThrottle() + 1)/2;
 		boolean valveOff = _gamepad.getRawButtonPressed(4);
 		
+		double distance = EncLeft.getDistance();
+		double distance1 = EncRight.getDistance();
+
 		// status
 		boolean autoadjust = false;
 
-		//solenoid control
-		if (valveOpen) {
-			DoubleSole.set(DoubleSolenoid.Value.kReverse); 
-			System.out.println("valve open");
-		}
-		if (valveClose) {
-			DoubleSole.set(DoubleSolenoid.Value.kForward);
-			System.out.println("valve close");
-		}
-		if (valveOff) {
-			DoubleSole.set(DoubleSolenoid.Value.kOff);
-		}
 
 		// servo arm control
 		_rightServo.setAngle(0);
 		_leftServo.setAngle(0);
 
 		// compressor control
-		if (trigger == true && Mode == false) { //1 press for on off
+		if (Compressor == true && Mode == false) { //1 press for on off
 			if (compressorstatus) {
 				compressorstatus = false;
 				c.setClosedLoopControl(false);
@@ -139,13 +146,35 @@ public class Robot extends TimedRobot {
 				c.setClosedLoopControl(true);
 			}
 			Mode = true;
-		}else if (trigger == false && Mode == true) {
+		}else if (Compressor == false && Mode == true) {
 			Mode = false;
 		}
+
+		if (trigger == true && SoleMode == false) {
+			if(pistonstatus){
+				pistonstatus = false;
+				DoubleSole.set(DoubleSolenoid.Value.kReverse);
+			} else if (pistonstatus == false) {
+				pistonstatus = true;
+				DoubleSole.set(DoubleSolenoid.Value.kForward);
+			}
+			SoleMode = true;
+		}else if (trigger == false && SoleMode == true) {
+			SoleMode = false;
+		}
+
 		if (c.getPressureSwitchValue()){
 			c.setClosedLoopControl(false);
+		}else if(c.getPressureSwitchValue()==false && compressorstatus == true){
+			c.setClosedLoopControl(true);
 		}
 		
+		System.out.println(distance);
+		System.out.println(distance1);
+		if (encoderReset) {
+			EncLeft.reset();
+			EncRight.reset();
+		}
 		/*driving logic*/
 		forward = Deadband(forward);
 		turn = Deadband(turn);
@@ -169,7 +198,7 @@ public class Robot extends TimedRobot {
 			rcw = 0;
 		}
 		_drive.arcadeDrive(turn+rcw, forward);
-	
+	}
 	// Deadband 5 percent, used on the gamepad
 	double Deadband(double value) {
 		/* Upper deadband */
