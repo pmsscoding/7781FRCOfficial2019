@@ -26,7 +26,7 @@ import edu.wpi.first.wpilibj.AnalogInput;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.DoubleSolenoid;
-
+import edu.wpi.first.wpilibj.DigitalInput;
 
 public class Robot extends TimedRobot {
 	/** Hardware, either Talon could be a Victor */
@@ -40,13 +40,12 @@ public class Robot extends TimedRobot {
 	DifferentialDrive _drive = new DifferentialDrive(_frontLeftMotor, _frontRightMotor);
 	
 	//encoder
-	
 	Encoder EncRight = new Encoder(0, 1, false, Encoder.EncodingType.k4X);
-	
 	Encoder EncLeft = new Encoder(2, 3, true, Encoder.EncodingType.k4X);
 	
+	DigitalInput leftTurn = new DigitalInput(4);
+	DigitalInput rightTurn = new DigitalInput(5);
 
-	
 	//GYRO and PID setting
 	double setangle = 0;
 	double integral, previous_error, rcw, derivative = 0;
@@ -64,7 +63,6 @@ public class Robot extends TimedRobot {
 	DoubleSolenoid DoubleSole = new DoubleSolenoid(0, 1);
 	boolean triggerStatus;
 	
-
 	@Override
 	public void robotInit() {
     		CameraServer.getInstance().startAutomaticCapture();
@@ -84,8 +82,6 @@ public class Robot extends TimedRobot {
 		_leftSlave1.configFactoryDefault();
 		_rightSlave1.configFactoryDefault();
 		
-		//encoder
-		
 		/*follow other motor*/
 		_leftSlave1.follow(_frontLeftMotor);
 		_rightSlave1.follow(_frontRightMotor);
@@ -99,82 +95,115 @@ public class Robot extends TimedRobot {
 		_frontRightMotor.setInverted(true); // <<<<<< Adjust this until robot drives forward when stick is forward
 		_leftSlave1.setInverted(InvertType.FollowMaster);
 		_rightSlave1.setInverted(InvertType.FollowMaster);
-		System.out.println("drive");
 		setangle = ahrs.getYaw();
 		c.setClosedLoopControl(false);
 	}
 	
-	boolean Mode = false;
-	boolean compressorstatus = false;
-	boolean SoleMode =false;
-	boolean pistonstatus = false;
+	boolean compresserButtonState = false;
+	boolean compressorStatus = false;
+	boolean pistonButtonState = false;
+	boolean pistonStatus = false;
 
 	@Override
 	public void teleopPeriodic() {
 		NetworkTableInstance inst =NetworkTableInstance.getDefault();
 		NetworkTable table = inst.getTable("Shuffleboard");
 		xEntry=table.getEntry("yeet");		
-		
+
 		// Gamepad processing	
-		boolean Compressor = _gamepad.getRawButton(5);
+		boolean compressorButton = _gamepad.getRawButton(5);
 		boolean encoderReset = _gamepad.getRawButton(3);
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
 		boolean trigger = _gamepad.getTrigger();
 		boolean toptrigger = _gamepad.getTop();
 		double sensitivity =1-( _gamepad.getThrottle() + 1)/2;
-		boolean valveOff = _gamepad.getRawButtonPressed(4);
+		boolean visionButton = _gamepad.getRawButton(4);
 		
-		double distance = EncLeft.getDistance();
-		double distance1 = EncRight.getDistance();
+		double distance = EncLeft.getRaw();
+		double distance1 = EncRight.getRaw();
 
 		// status
 		boolean autoadjust = false;
-
 
 		// servo arm control
 		_rightServo.setAngle(0);
 		_leftServo.setAngle(0);
 
+		/*
+		How buttonState works:
+		getRawButton() will periodically produce true/false
+		to reject subsequent "true"s when the button is pressed for a longer time,
+		the button will set a buttonState.
+		when buttonState and button are misaligned (eg one is false one is true) that means
+		a the button has just been pressed or released, and will realign the two.
+		using this we can detect the first time the button is triggered and released.
+		*/
+		// vision targeting control		
+		boolean left = leftTurn.get();
+		boolean right = rightTurn.get();
+		double visionCorrectAmt = 0;
+		double adjustSensitivity = 0.4;
+
+		if (visionButton == true) {	
+			System.out.println("buttonpressed");
+			if (right && !left) {
+				System.out.println("right & not left");
+				visionCorrectAmt = adjustSensitivity;
+			}else if (left && !right) {
+				System.out.println("left & not right");
+				visionCorrectAmt = -adjustSensitivity;
+			}else if (left && right) {
+				System.out.println("left & right");
+				visionCorrectAmt = 0;
+			}else {
+				System.out.println("not left & not right");
+				visionCorrectAmt = 0;
+			}
+		}else {
+			visionCorrectAmt = 0;
+		}
+
 		// compressor control
-		if (Compressor == true && Mode == false) { //1 press for on off
-			if (compressorstatus) {
-				compressorstatus = false;
+		if (compressorButton == true && compresserButtonState == false) { //1 press for on off
+			if (compressorStatus) {
+				compressorStatus = false;
 				c.setClosedLoopControl(false);
-			} else if (compressorstatus == false) {
-				compressorstatus = true;
+			} else if (compressorStatus == false) {
+				compressorStatus = true;
 				c.setClosedLoopControl(true);
 			}
-			Mode = true;
-		}else if (Compressor == false && Mode == true) {
-			Mode = false;
+			compresserButtonState = true;
+		}else if (compressorButton == false && compresserButtonState == true) {
+			compresserButtonState = false;
 		}
 
-		if (trigger == true && SoleMode == false) {
-			if(pistonstatus){
-				pistonstatus = false;
+		//piston extend and retract
+		if (trigger == true && pistonButtonState == false) {
+			if(pistonStatus){
+				pistonStatus = false;
 				DoubleSole.set(DoubleSolenoid.Value.kReverse);
-			} else if (pistonstatus == false) {
-				pistonstatus = true;
+			} else if (pistonStatus == false) {
+				pistonStatus = true;
 				DoubleSole.set(DoubleSolenoid.Value.kForward);
 			}
-			SoleMode = true;
-		}else if (trigger == false && SoleMode == true) {
-			SoleMode = false;
+			pistonButtonState = true;
+		}else if (trigger == false && pistonButtonState == true) {
+			pistonButtonState = false;
 		}
-
-		if (c.getPressureSwitchValue()){
+		if (c.getPressureSwitchValue()==true){
 			c.setClosedLoopControl(false);
-		}else if(c.getPressureSwitchValue()==false && compressorstatus == true){
+		}else if(c.getPressureSwitchValue()==false && compressorStatus == true){
 			c.setClosedLoopControl(true);
 		}
 		
-		System.out.println(distance);
-		System.out.println(distance1);
+		//System.out.println(distance);
+		//System.out.println(distance1);
 		if (encoderReset) {
 			EncLeft.reset();
 			EncRight.reset();
 		}
+
 		/*driving logic*/
 		forward = Deadband(forward);
 		turn = Deadband(turn);
@@ -197,7 +226,7 @@ public class Robot extends TimedRobot {
 			setangle = ahrs.getYaw();
 			rcw = 0;
 		}
-		_drive.arcadeDrive(turn+rcw, forward);
+		_drive.arcadeDrive(turn+rcw+visionCorrectAmt, forward);
 	}
 	// Deadband 5 percent, used on the gamepad
 	double Deadband(double value) {
