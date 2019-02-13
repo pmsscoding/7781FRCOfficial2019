@@ -95,7 +95,6 @@ public class Robot extends TimedRobot {
 		_frontRightMotor.setInverted(true); // <<<<<< Adjust this until robot drives forward when stick is forward
 		_leftSlave1.setInverted(InvertType.FollowMaster);
 		_rightSlave1.setInverted(InvertType.FollowMaster);
-		System.out.println("drive");
 		setangle = ahrs.getYaw();
 		c.setClosedLoopControl(false);
 	}
@@ -103,9 +102,8 @@ public class Robot extends TimedRobot {
 	boolean compresserButtonState = false;
 	boolean compressorStatus = false;
 	boolean pistonButtonState = false;
+	boolean armButtonState = false;
 	boolean pistonStatus = false;
-	boolean visionButtonState = false;
-	boolean visionStatus = false;
 
 	@Override
 	public void teleopPeriodic() {
@@ -115,13 +113,14 @@ public class Robot extends TimedRobot {
 
 		// Gamepad processing	
 		boolean compressorButton = _gamepad.getRawButton(5);
+		boolean armButton = _gamepad.getRawButton(4);
 		boolean encoderReset = _gamepad.getRawButton(3);
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
 		boolean trigger = _gamepad.getTrigger();
 		boolean toptrigger = _gamepad.getTop();
 		double sensitivity =1-( _gamepad.getThrottle() + 1)/2;
-		boolean visionButton = _gamepad.getRawButton(2);
+		boolean visionButton = _gamepad.getRawButton(6);
 		
 		double distance = EncLeft.getRaw();
 		double distance1 = EncRight.getRaw();
@@ -129,9 +128,39 @@ public class Robot extends TimedRobot {
 		// status
 		boolean autoadjust = false;
 
-		// servo arm control
-		_rightServo.setAngle(0);
-		_leftServo.setAngle(0);
+		/*
+		How buttonState works:
+		getRawButton() will periodically produce true/false
+		to reject subsequent "true"s when the button is pressed for a longer time,
+		the button will set a buttonState.
+		when buttonState and button are misaligned (eg one is false one is true) that means
+		a the button has just been pressed or released, and will realign the two.
+		using this we can detect the first time the button is triggered and released.
+		*/
+		// vision targeting control		
+		boolean left = leftTurn.get();
+		boolean right = rightTurn.get();
+		double visionCorrectAmt = 0;
+		double adjustSensitivity = 0.4;
+
+		if (visionButton == true) {	
+			System.out.println("buttonpressed");
+			if (right == true && left == false) {
+				System.out.println("right & not left, turning right");
+				visionCorrectAmt = adjustSensitivity;
+			}else if (left == true && right == false) {
+				System.out.println("left & not right, turning left");
+				visionCorrectAmt = -adjustSensitivity;
+			}else if (left == false && right == false) {
+				System.out.println("left & right, object detected");
+				visionCorrectAmt = 0;
+			}else {
+				System.out.println("else block");
+				visionCorrectAmt = 0;
+			}
+		}else {
+			visionCorrectAmt = 0;
+		}
 
 		/*
 		How buttonState works:
@@ -184,14 +213,16 @@ public class Robot extends TimedRobot {
 		}else if (trigger == false && pistonButtonState == true) {
 			pistonButtonState = false;
 		}
+
+		//automatic compressor succ
 		if (c.getPressureSwitchValue()==true){
 			c.setClosedLoopControl(false);
 		}else if(c.getPressureSwitchValue()==false && compressorStatus == true){
 			c.setClosedLoopControl(true);
 		}
 		
-		System.out.println(distance);
-		System.out.println(distance1);
+		//System.out.println(distance);
+		//System.out.println(distance1);
 		if (encoderReset) {
 			EncLeft.reset();
 			EncRight.reset();
@@ -202,6 +233,16 @@ public class Robot extends TimedRobot {
 		turn = Deadband(turn);
 		forward *= sensitivity;
 		turn *= sensitivity;
+
+		//arm control
+		if (armButton == true) {
+			_rightServo.setAngle(90);
+			_leftServo.setAngle(90);
+		}
+		else if (armButton == false) {
+			_rightServo.setAngle(0);
+			_leftServo.setAngle(0);
+		}
 
 		//gyro pid processing
 		if (toptrigger){
@@ -219,7 +260,7 @@ public class Robot extends TimedRobot {
 			setangle = ahrs.getYaw();
 			rcw = 0;
 		}
-		_drive.arcadeDrive(turn+rcw, forward);
+		_drive.arcadeDrive(turn+rcw+visionCorrectAmt, forward);
 	}
 	// Deadband 5 percent, used on the gamepad
 	double Deadband(double value) {
