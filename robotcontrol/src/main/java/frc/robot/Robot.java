@@ -102,6 +102,7 @@ public class Robot extends TimedRobot {
 	boolean compresserButtonState = false;
 	boolean compressorStatus = false;
 	boolean pistonButtonState = false;
+	boolean armButtonState = false;
 	boolean pistonStatus = false;
 
 	@Override
@@ -112,23 +113,20 @@ public class Robot extends TimedRobot {
 
 		// Gamepad processing	
 		boolean compressorButton = _gamepad.getRawButton(5);
+		boolean armButton = _gamepad.getRawButton(4);
 		boolean encoderReset = _gamepad.getRawButton(3);
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
 		boolean trigger = _gamepad.getTrigger();
 		boolean toptrigger = _gamepad.getTop();
 		double sensitivity =1-( _gamepad.getThrottle() + 1)/2;
-		boolean visionButton = _gamepad.getRawButton(4);
+		boolean visionButton = _gamepad.getRawButton(6);
 		
 		double distance = EncLeft.getRaw();
 		double distance1 = EncRight.getRaw();
 
 		// status
 		boolean autoadjust = false;
-
-		// servo arm control
-		_rightServo.setAngle(0);
-		_leftServo.setAngle(0);
 
 		/*
 		How buttonState works:
@@ -147,17 +145,17 @@ public class Robot extends TimedRobot {
 
 		if (visionButton == true) {	
 			System.out.println("buttonpressed");
-			if (right && !left) {
-				System.out.println("right & not left");
+			if (right == true && left == false) {
+				System.out.println("right & not left, turning right");
 				visionCorrectAmt = adjustSensitivity;
-			}else if (left && !right) {
-				System.out.println("left & not right");
+			}else if (left == true && right == false) {
+				System.out.println("left & not right, turning left");
 				visionCorrectAmt = -adjustSensitivity;
-			}else if (left && right) {
-				System.out.println("left & right");
+			}else if (left == false && right == false) {
+				System.out.println("left & right, object detected");
 				visionCorrectAmt = 0;
 			}else {
-				System.out.println("not left & not right");
+				System.out.println("else block");
 				visionCorrectAmt = 0;
 			}
 		}else {
@@ -191,6 +189,8 @@ public class Robot extends TimedRobot {
 		}else if (trigger == false && pistonButtonState == true) {
 			pistonButtonState = false;
 		}
+
+		//automatic compressor succ
 		if (c.getPressureSwitchValue()==true){
 			c.setClosedLoopControl(false);
 		}else if(c.getPressureSwitchValue()==false && compressorStatus == true){
@@ -209,6 +209,16 @@ public class Robot extends TimedRobot {
 		turn = Deadband(turn);
 		forward *= sensitivity;
 		turn *= sensitivity;
+
+		//arm control
+		if (armButton == true) {
+			_rightServo.setAngle(90);
+			_leftServo.setAngle(90);
+		}
+		else if (armButton == false) {
+			_rightServo.setAngle(0);
+			_leftServo.setAngle(0);
+		}
 
 		//gyro pid processing
 		if (toptrigger){
