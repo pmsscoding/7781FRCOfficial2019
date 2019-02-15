@@ -104,6 +104,9 @@ public class Robot extends TimedRobot {
 	boolean pistonButtonState = false;
 	boolean armButtonState = false;
 	boolean pistonStatus = false;
+	float hatchAngle;
+	float rocketAngleLeft;
+	float rocketAngleRight;
 
 	@Override
 	public void teleopPeriodic() {
@@ -119,6 +122,9 @@ public class Robot extends TimedRobot {
 		double turn = _gamepad.getTwist();
 		boolean trigger = _gamepad.getTrigger();
 		boolean toptrigger = _gamepad.getTop();
+		boolean angleButton = _gamepad.getRawButton(12);
+		boolean rocketLeftButton = _gamepad.getRawButton(9);
+		boolean rocketRightButton = _gamepad.getRawButton(10);
 		double sensitivity =1-( _gamepad.getThrottle() + 1)/2;
 		boolean visionButton = _gamepad.getRawButton(6);
 		
@@ -140,24 +146,30 @@ public class Robot extends TimedRobot {
 		// vision targeting control		
 		boolean left = leftTurn.get();
 		boolean right = rightTurn.get();
+
 		double visionCorrectAmt = 0;
 		double adjustSensitivity = 0.4;
 
 		if (visionButton == true) {	
 			System.out.println("buttonpressed");
-			if (right == true && left == false) {
+			/*if (right == true && left == false) {
 				System.out.println("right & not left, turning right");
 				visionCorrectAmt = adjustSensitivity;
-			}else if (left == true && right == false) {
+			}
+			else if (left == true && right == false) {
 				System.out.println("left & not right, turning left");
 				visionCorrectAmt = -adjustSensitivity;
-			}else if (left == false && right == false) {
+			}
+			else if (left == false && right == false) {
 				System.out.println("left & right, object detected");
 				visionCorrectAmt = 0;
 			}else {
 				System.out.println("else block");
 				visionCorrectAmt = 0;
-			}
+			}*/
+			System.out.println(left);
+			System.out.println(right);
+
 		}else {
 			visionCorrectAmt = 0;
 		}
@@ -210,6 +222,20 @@ public class Robot extends TimedRobot {
 		forward *= sensitivity;
 		turn *= sensitivity;
 
+		//robot general align to rocket
+		if (angleButton) {
+			hatchAngle = ahrs.getYaw(); //logs "master angle" to find other angles on game field
+			System.out.println(hatchAngle); //print angle
+		}
+		if (rocketLeftButton) { //rocket left angle
+			rocketAngleLeft = hatchAngle + 90;
+			turn = rocketAngleLeft/180;
+		}
+		if (rocketRightButton) {//rocket right angle
+			rocketAngleRight = hatchAngle - 90;
+			turn = rocketAngleRight/180;
+		}
+
 		//arm control
 		if (armButton == true) {
 			_rightServo.setAngle(90);
@@ -221,21 +247,6 @@ public class Robot extends TimedRobot {
 		}
 
 		//gyro pid processing
-		if (toptrigger){
-			if(autoadjust == true) {
-				autoadjust = false;
-			}
-			if(autoadjust == false) {
-				autoadjust = true;
-			}
-		}
-		if (autoadjust){
-			GyroPID();
-		}
-		if (autoadjust == false){
-			setangle = ahrs.getYaw();
-			rcw = 0;
-		}
 		_drive.arcadeDrive(turn+rcw+visionCorrectAmt, forward);
 	}
 	// Deadband 5 percent, used on the gamepad
@@ -248,21 +259,5 @@ public class Robot extends TimedRobot {
 		
 		/* Outside deadband */
 		return 0;
-	}
-	
-	public void GyroPID(){
-		double difference = setangle - ahrs.getYaw();
-		this.previous_error = difference;
-		if (difference < 60 && difference > -60){
-			this.integral +=(difference*0.02);
-		} else {
-			this.integral = 0;
-		}
-		derivative = (difference - this.previous_error)/0.02;
-		if (difference > 90 || difference < -90) {
-			this.rcw = 0.7;
-		 }else {
-			this.rcw = P*difference + I*this.integral - D*derivative;
-		}
 	}
 }
