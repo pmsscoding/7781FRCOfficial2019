@@ -174,6 +174,30 @@ public class Robot extends TimedRobot {
 			visionCorrectAmt = 0;
 		}
 
+		/*
+		How buttonState works:
+		getRawButton() will periodically produce true/false
+		to reject subsequent "true"s when the button is pressed for a longer time,
+		the button will set a buttonState.
+		when buttonState and button are misaligned (eg one is false one is true) that means
+		a the button has just been pressed or released, and will realign the two.
+		using this we can detect the first time the button is triggered and released.
+		*/
+		// vision targeting control		
+		boolean left = leftTurn.get();
+		boolean right = rightTurn.get();
+		
+		if (visionButton == true && visionButtonState == false) {	
+			if (right && !left) {
+				_drive.arcadeDrive(-0.3, 0);
+			}else if (left && !right) {
+				_drive.arcadeDrive(0.3, 0);
+			}
+			visionButtonState=true;
+		} else if (visionButton == false && visionButtonState == true) {
+			visionButtonState=false;
+		}
+
 		// compressor control
 		if (compressorButton == true && compresserButtonState == false) { //1 press for on off
 			if (compressorStatus) {
