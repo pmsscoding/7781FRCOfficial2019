@@ -40,6 +40,7 @@ public class Robot extends TimedRobot {
 	DifferentialDrive _drive = new DifferentialDrive(_frontLeftMotor, _frontRightMotor);
 	
 	//encoder
+	SerialPort serial = new SerialPort(123, SerialPort.Port.kOnboard);
 	Encoder EncRight = new Encoder(0, 1, false, Encoder.EncodingType.k4X);
 	Encoder EncLeft = new Encoder(2, 3, true, Encoder.EncodingType.k4X);
 	
@@ -105,7 +106,6 @@ public class Robot extends TimedRobot {
 	boolean armButtonState = false;
 	boolean pistonStatus = false;
 	float hatchAngle;
-	float rocketAngleLeft;
 	float rocketAngleRight;
 
 	@Override
@@ -209,45 +209,72 @@ public class Robot extends TimedRobot {
 			c.setClosedLoopControl(true);
 		}
 		
-		//System.out.println(distance);
-		//System.out.println(distance1);
 		if (encoderReset) {
 			EncLeft.reset();
 			EncRight.reset();
 		}
-
 		/*driving logic*/
 		forward = Deadband(forward);
 		turn = Deadband(turn);
 		forward *= sensitivity;
 		turn *= sensitivity;
+		double rocketAngleLeft = hatchAngle+90;
+		double RawAngle = ahrs.getYaw();
+		double currentAngle = RawAngle + 180;
+		double error = Math.abs(rocketAngleLeft) - Math.abs(currentAngle);
+		double turnAdd=0;
+		//encoder variables
 
+		//encoder x and y stuff
+		double xDisplacement = ahrs.getDisplacementY();
+		double yDisplacement = ahrs.getDisplacementX();
+
+		//System.out.println("y displacement" + yDisplacement);
+		//System.out.println("x displacement" + xDisplacement);
 		//robot general align to rocket
+
 		if (angleButton) {
 			hatchAngle = ahrs.getYaw(); //logs "master angle" to find other angles on game field
-			System.out.println(hatchAngle); //print angle
-		}
-		if (rocketLeftButton) { //rocket left angle
-			rocketAngleLeft = hatchAngle + 90;
-			turn = rocketAngleLeft/180;
+			System.out.println(currentAngle); //print angle
+			System.out.println(RawAngle);
 		}
 		if (rocketRightButton) {//rocket right angle
-			rocketAngleRight = hatchAngle - 90;
-			turn = rocketAngleRight/180;
+			if (Math.abs(error)>=40) {
+				turnAdd = -0.5;
+				System.out.println("turning to angle" + error);
+			}
+			else if (Math.abs(error)<40){
+				if (currentAngle<rocketAngleLeft) {
+					turnAdd = 0.43;
+					if (error<10) {
+						turnAdd = 0;
+						System.out.println("Angle Reached");
+					}
+				}
+				else if (currentAngle>=rocketAngleLeft) {
+					turnAdd = -0.43;
+					if (error<10) {
+						turnAdd = 0;
+						System.out.println("Angle Reached");
+					}
+				}
+				turnAdd = 0.43;
+				System.out.println("precise mode" + error);
+			}
 		}
 
 		//arm control
 		if (armButton == true) {
-			_rightServo.setAngle(90);
-			_leftServo.setAngle(90);
+			_rightServo.setAngle(135);
+			_leftServo.setAngle(135);
 		}
 		else if (armButton == false) {
-			_rightServo.setAngle(0);
-			_leftServo.setAngle(0);
+			_rightServo.setAngle(45);
+			_leftServo.setAngle(45);
 		}
 
 		//gyro pid processing
-		_drive.arcadeDrive(turn+rcw+visionCorrectAmt, forward);
+		_drive.arcadeDrive(turn+rcw+visionCorrectAmt+turnAdd, forward);
 	}
 	// Deadband 5 percent, used on the gamepad
 	double Deadband(double value) {
