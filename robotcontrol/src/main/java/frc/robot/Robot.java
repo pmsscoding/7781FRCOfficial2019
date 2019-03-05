@@ -3,9 +3,8 @@ import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.Counter.Mode;
-import edu.wpi.first.wpilibj.Counter.Mode;
-import edu.wpi.first.wpilibj.Counter.Mode;
 import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.I2C;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
@@ -56,8 +55,6 @@ public class Robot extends TimedRobot {
 	AHRS ahrs;
 	//Networktable variables
 	NetworkTableEntry xEntry;
-	NetworkTableEntry yEntry;
-	double yeet;
 
 	//pneumatic control
 	Compressor c = new Compressor(0);
@@ -66,6 +63,10 @@ public class Robot extends TimedRobot {
 	
 	@Override
 	public void robotInit() {
+	NetworkTableInstance inst = NetworkTableInstance.getDefault();
+    NetworkTable table = inst.getTable("SmartDashboard");
+	xEntry=table.getEntry("x");
+	
     		CameraServer.getInstance().startAutomaticCapture();
 		try {
 			ahrs = new AHRS(Port.kUSB1);
@@ -110,9 +111,9 @@ public class Robot extends TimedRobot {
 
 	@Override
 	public void teleopPeriodic() {
-		NetworkTableInstance inst =NetworkTableInstance.getDefault();
-		NetworkTable table = inst.getTable("Shuffleboard");
-		xEntry=table.getEntry("yeet");		
+		
+		double x= xEntry.getDouble(0.0);
+    	System.out.println("This is x:" + x);
 
 		// Gamepad processing	
 		boolean compressorButton = _gamepad.getRawButton(5);
@@ -184,7 +185,7 @@ public class Robot extends TimedRobot {
 		using this we can detect the first time the button is triggered and released.
 		*/
 		// vision targeting control		
-		boolean left = leftTurn.get();
+/*		boolean left = leftTurn.get();
 		boolean right = rightTurn.get();
 		
 		if (visionButton == true && visionButtonState == false) {	
@@ -196,7 +197,7 @@ public class Robot extends TimedRobot {
 			visionButtonState=true;
 		} else if (visionButton == false && visionButtonState == true) {
 			visionButtonState=false;
-		}
+		}*/
 
 		// compressor control
 		if (compressorButton == true && compresserButtonState == false) { //1 press for on off
@@ -224,13 +225,6 @@ public class Robot extends TimedRobot {
 			pistonButtonState = true;
 		}else if (trigger == false && pistonButtonState == true) {
 			pistonButtonState = false;
-		}
-
-		//automatic compressor succ
-		if (c.getPressureSwitchValue()==true){
-			c.setClosedLoopControl(false);
-		}else if(c.getPressureSwitchValue()==false && compressorStatus == true){
-			c.setClosedLoopControl(true);
 		}
 		
 		if (encoderReset) {
