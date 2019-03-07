@@ -34,8 +34,10 @@ public class Robot extends TimedRobot {
 	WPI_VictorSPX _leftSlave1 = new WPI_VictorSPX(4);
 	WPI_VictorSPX _rightSlave1 = new WPI_VictorSPX(5);
 	DifferentialDrive _drive = new DifferentialDrive(_frontLeftMotor, _frontRightMotor);
+	
 	//networktable
 	NetworkTableEntry xEntry;
+
 	//encoder
 	Encoder EncRight = new Encoder(0, 1, false, Encoder.EncodingType.k4X);
 	Encoder EncLeft = new Encoder(2, 3, true, Encoder.EncodingType.k4X);
@@ -63,8 +65,6 @@ public class Robot extends TimedRobot {
 	double visionCorrectAmt = 0;
 	double SetTurn = 0;
 	AHRS ahrs;
-
-	
 
 	//pneumatic control
 	Compressor c = new Compressor(0);
@@ -145,31 +145,27 @@ public class Robot extends TimedRobot {
 		System.out.println("This is VisionCord:" + VisionCord);
 
 		// Gamepad processing	
-		boolean Right90 = _gamepad.getRawButton(10);
-		boolean Left90 = _gamepad.getRawButton(9);
-		boolean TurnButton = _gamepad.getRawButton(3); 
+		boolean Right90 = _gamepad.getRawButton(4);
+		boolean Left90 = _gamepad.getRawButton(6);
+		boolean toptrigger = _gamepad.getRawButton(11); 
 		boolean encoderReset = _gamepad.getRawButton(7);
-		boolean TurnOff = _gamepad.getRawButton(12);
+		
 		boolean compressorButton = _gamepad.getRawButton(5);
-		boolean VisionButton = _gamepad.getRawButton(6);
+		boolean VisionButton = _gamepad.getRawButton(3);
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
 		boolean trigger = _gamepad.getTrigger();
-		boolean toptrigger = _gamepad.getTop();
+		boolean TurnButton = _gamepad.getTop();
 		double sensitivity =1-( _gamepad.getThrottle() + 1)/2;
-		boolean turn90 = _gamepad.getRawButton(4);
 		
 		double distance = EncLeft.getRaw();
 		double distance1 = EncRight.getRaw();
-
-		
 
 		// status
 		boolean autoadjust = false;
 
 		// servo arm control
 		
-
 		/*
 		How buttonState works:
 		getRawButton() will periodically produce true/false
@@ -179,33 +175,10 @@ public class Robot extends TimedRobot {
 		a the button has just been pressed or released, and will realign the two.
 		using this we can detect the first time the button is triggered and released.
 		*/
+
 		// vision targeting control		
-	
-		
 		double adjustSensitivity = 0.4;
-	/*	
 
-
-
-		if (visionButton == true) {	
-			System.out.println("buttonpressed");
-			if (right && !left) {
-				System.out.println("right & not left");
-				visionCorrectAmt = adjustSensitivity;
-			}else if (left && !right) {
-				System.out.println("left & not right");
-				visionCorrectAmt = -adjustSensitivity;
-			}else if (left && right) {
-				System.out.println("left & right");
-				visionCorrectAmt = 0;
-			}else {
-				System.out.println("not left & not right");
-				visionCorrectAmt = 0;
-			}
-		}else {
-			visionCorrectAmt = 0;
-		}
-*/
 		// compressor control
 		if (compressorButton == true && compresserButtonState == false) { //1 press for on off
 			if (compressorStatus) {
@@ -235,23 +208,6 @@ public class Robot extends TimedRobot {
 		}else if (TurnButton == false && ServoButtonState == true) {
 			ServoButtonState = false;
 		}
-		
-		
-	
-		/*
-
-		if(turnMode == true){
-			if(ahrs.getYaw()- Iangle <95){
-				addTurn = 0.5;
-			}else if (ahrs.getYaw() - Iangle > -95){
-				addTurn = -0.5;
-			
-			}
-		}
-		if(TurnOff == true){
-			turnMode = false;
-			addTurn = 0;
-		}*/
 
 		//piston extend and retract
 		if (trigger == true && pistonButtonState == false) {
@@ -272,9 +228,7 @@ public class Robot extends TimedRobot {
 			c.setClosedLoopControl(true);
 		}
 
-
-
-
+		//vision correct 
 		if (VisionButton == true && VisionStatus == false) {
 			if(visionMode){
 				VisionStatus = false;
@@ -360,23 +314,7 @@ public class Robot extends TimedRobot {
 		forward *= sensitivity;
 		turn *= sensitivity;
 
-		//gyro pid processing
-		if (toptrigger){
-			if(autoadjust == true) {
-				autoadjust = false;
-			}
-			if(autoadjust == false) {
-				autoadjust = true;
-			}
-		}
-		if (autoadjust){
-			GyroPID();
-		}
-		if (autoadjust == false){
-			setangle = ahrs.getYaw();
-			rcw = 0;
-		}
-		_drive.arcadeDrive(turn+rcw+visionCorrectAmt, forward);
+		_drive.arcadeDrive(turn+visionCorrectAmt, forward);
 	}
 
 	// Deadband 5 percent, used on the gamepad
@@ -391,21 +329,6 @@ public class Robot extends TimedRobot {
 		return 0;
 	}
 	
-	public void GyroPID(){
-		double difference = setangle - ahrs.getYaw();
-		this.previous_error = difference;
-		if (difference < 60 && difference > -60){
-			this.integral +=(difference*0.02);
-		} else {
-			this.integral = 0;
-		}
-		derivative = (difference - this.previous_error)/0.02;
-		if (difference > 90 || difference < -90) {
-			this.rcw = 0.7;
-		 }else {
-			this.rcw = P*difference + I*this.integral - D*derivative;
-		}
-	}
 	public void VisionPID(){
 		Vdifference = xEntry.getDouble(0.0) - 160;
 		this.pre_Verror = Vdifference;
@@ -420,9 +343,6 @@ public class Robot extends TimedRobot {
 		}else if(Vdifference < 100 && Vdifference > -100){
 			this.visionCorrectAmt = Vp*Vdifference + Vi*Vintegral + Vd*Vdifference;
 		}
-
-
-
 	}
 	public void Rturn90(){
 		Rdifference = Rdesire - ahrs.getYaw();
@@ -439,8 +359,6 @@ public class Robot extends TimedRobot {
 		}else if(Rdifference < 50){
 			this.Rturn = Rdifference*Tp + Rintegral*Ti + Rderivative*Td;
 		}
-		
-		
 	}
 	public void Lturn90(){
 		Ldifference = Fdesire - ahrs.getYaw();
@@ -459,9 +377,4 @@ public class Robot extends TimedRobot {
 		}
 
 	}
-	
-
-
-	
-	
 }
