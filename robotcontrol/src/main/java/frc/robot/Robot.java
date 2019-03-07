@@ -111,7 +111,7 @@ public class Robot extends TimedRobot {
 
 	@Override
 	public void teleopPeriodic() {
-		
+		//network table
 		double x= xEntry.getDouble(0.0);
     	System.out.println("This is x:" + x);
 
@@ -150,54 +150,19 @@ public class Robot extends TimedRobot {
 
 		double visionCorrectAmt = 0;
 		double adjustSensitivity = 0.4;
-
-		if (visionButton == true) {	
-			System.out.println("buttonpressed");
-			/*if (right == true && left == false) {
-				System.out.println("right & not left, turning right");
-				visionCorrectAmt = adjustSensitivity;
-			}
-			else if (left == true && right == false) {
-				System.out.println("left & not right, turning left");
-				visionCorrectAmt = -adjustSensitivity;
-			}
-			else if (left == false && right == false) {
-				System.out.println("left & right, object detected");
-				visionCorrectAmt = 0;
-			}else {
-				System.out.println("else block");
-				visionCorrectAmt = 0;
-			}*/
-			System.out.println(left);
-			System.out.println(right);
-
-		}else {
-			visionCorrectAmt = 0;
-		}
-
-		/*
-		How buttonState works:
-		getRawButton() will periodically produce true/false
-		to reject subsequent "true"s when the button is pressed for a longer time,
-		the button will set a buttonState.
-		when buttonState and button are misaligned (eg one is false one is true) that means
-		a the button has just been pressed or released, and will realign the two.
-		using this we can detect the first time the button is triggered and released.
-		*/
-		// vision targeting control		
-/*		boolean left = leftTurn.get();
-		boolean right = rightTurn.get();
 		
-		if (visionButton == true && visionButtonState == false) {	
-			if (right && !left) {
-				_drive.arcadeDrive(-0.3, 0);
-			}else if (left && !right) {
-				_drive.arcadeDrive(0.3, 0);
+		//visionstuff
+		if (visionButton == true) {	
+			if (xEntry.getDouble(0.0) - 160 > 10) {
+				visionCorrectAmt = 0.4;
 			}
-			visionButtonState=true;
-		} else if (visionButton == false && visionButtonState == true) {
-			visionButtonState=false;
-		}*/
+			else if (xEntry.getDouble(0.0) - 160 < -10) {
+				visionCorrectAmt = -0.4;
+			}
+			else {
+				visionCorrectAmt = 0;
+			}
+		}
 
 		// compressor control
 		if (compressorButton == true && compresserButtonState == false) { //1 press for on off
@@ -241,15 +206,6 @@ public class Robot extends TimedRobot {
 		double currentAngle = RawAngle + 180;
 		double error = Math.abs(rocketAngleLeft) - Math.abs(currentAngle);
 		double turnAdd=0;
-		//encoder variables
-
-		//encoder x and y stuff
-		double xDisplacement = ahrs.getDisplacementY();
-		double yDisplacement = ahrs.getDisplacementX();
-
-		//System.out.println("y displacement" + yDisplacement);
-		//System.out.println("x displacement" + xDisplacement);
-		//robot general align to rocket
 
 		if (angleButton) {
 			hatchAngle = ahrs.getYaw(); //logs "master angle" to find other angles on game field
