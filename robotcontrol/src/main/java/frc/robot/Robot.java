@@ -2,7 +2,9 @@ package frc.robot;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.Counter.Mode;
 import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.SPI;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
@@ -39,6 +41,7 @@ public class Robot extends TimedRobot {
 	NetworkTableEntry xEntry;
 
 	//encoder
+	SerialPort serial = new SerialPort(123, SerialPort.Port.kOnboard);
 	Encoder EncRight = new Encoder(0, 1, false, Encoder.EncodingType.k4X);
 	Encoder EncLeft = new Encoder(2, 3, true, Encoder.EncodingType.k4X);
 	SerialPort ser = new SerialPort(9600, SerialPort.Port.kMXP);
@@ -65,6 +68,8 @@ public class Robot extends TimedRobot {
 	double visionCorrectAmt = 0;
 	double SetTurn = 0;
 	AHRS ahrs;
+	//Networktable variables
+	NetworkTableEntry xEntry;
 
 	//pneumatic control
 	Compressor c = new Compressor(0);
@@ -73,11 +78,11 @@ public class Robot extends TimedRobot {
 	
 	@Override
 	public void robotInit() {
-		NetworkTableInstance inst =NetworkTableInstance.getDefault();
-		NetworkTable table = inst.getTable("SmartDashboard");
-		NetworkTableEntry xEntry=table.getEntry("x");	
-
-    	CameraServer.getInstance().startAutomaticCapture();
+	NetworkTableInstance inst = NetworkTableInstance.getDefault();
+    NetworkTable table = inst.getTable("SmartDashboard");
+	xEntry=table.getEntry("x");
+	
+    		CameraServer.getInstance().startAutomaticCapture();
 		try {
 			ahrs = new AHRS(Port.kUSB1);
 		} catch(RuntimeException ex) {
@@ -118,31 +123,14 @@ public class Robot extends TimedRobot {
 	boolean compressorStatus = false;
 	boolean pistonButtonState = false;
 	boolean pistonStatus = false;
-	boolean turnMode = false;
-	boolean ServoStatus = false;
-	boolean ServoButtonState = false;
-	boolean VisionStatus = false;
-	boolean visionMode = false;
-	boolean VcorrectStatus = false;
-	double Iangle = 0;
-	double addTurn = 0;
-	double Rdesire = -90;
-	double Fdesire = 90;
-
-	// left and right 90 turn variable
-	boolean Lstatus = false;
-	boolean LMode = false;
-	boolean RMode = false;
-	boolean Rstatus = false;
-	boolean Ladjust = false;
-	boolean Radjust = false;
-
-
+	float hatchAngle;
+	float rocketAngleRight;
 
 	@Override
 	public void teleopPeriodic() {
-		double VisionCord = xEntry.getDouble(0.0);
-		System.out.println("This is VisionCord:" + VisionCord);
+		//network table
+		double x= xEntry.getDouble(0.0);
+    	System.out.println("This is x:" + x);
 
 		// Gamepad processing	
 		boolean Right90 = _gamepad.getRawButton(4);
@@ -155,7 +143,10 @@ public class Robot extends TimedRobot {
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
 		boolean trigger = _gamepad.getTrigger();
-		boolean TurnButton = _gamepad.getTop();
+		boolean toptrigger = _gamepad.getTop();
+		boolean angleButton = _gamepad.getRawButton(12);
+		boolean rocketLeftButton = _gamepad.getRawButton(9);
+		boolean rocketRightButton = _gamepad.getRawButton(10);
 		double sensitivity =1-( _gamepad.getThrottle() + 1)/2;
 		
 		double distance = EncLeft.getRaw();
@@ -175,9 +166,25 @@ public class Robot extends TimedRobot {
 		a the button has just been pressed or released, and will realign the two.
 		using this we can detect the first time the button is triggered and released.
 		*/
-
 		// vision targeting control		
+		boolean left = leftTurn.get();
+		boolean right = rightTurn.get();
+
+		double visionCorrectAmt = 0;
 		double adjustSensitivity = 0.4;
+		
+		//visionstuff
+		if (visionButton == true) {	
+			if (xEntry.getDouble(0.0) - 160 > 10) {
+				visionCorrectAmt = 0.4;
+			}
+			else if (xEntry.getDouble(0.0) - 160 < -10) {
+				visionCorrectAmt = -0.4;
+			}
+			else {
+				visionCorrectAmt = 0;
+			}
+		}
 
 		// compressor control
 		if (compressorButton == true && compresserButtonState == false) { //1 press for on off
@@ -222,99 +229,64 @@ public class Robot extends TimedRobot {
 		}else if (trigger == false && pistonButtonState == true) {
 			pistonButtonState = false;
 		}
-		if (c.getPressureSwitchValue()==true){
-			c.setClosedLoopControl(false);
-		}else if(c.getPressureSwitchValue()==false && compressorStatus == true){
-			c.setClosedLoopControl(true);
-		}
-
-		//vision correct 
-		if (VisionButton == true && VisionStatus == false) {
-			if(visionMode){
-				VisionStatus = false;
-				VcorrectStatus = true;
-			} else if (VisionStatus == false) {
-				VisionStatus = true;
-				VcorrectStatus = false;
-			}
-		    visionMode = true;
-		}else if (VisionButton == false && VisionStatus == true) {
-			visionMode = false;
-		}
-
-		if (VcorrectStatus = true && xEntry.getDouble(0.0) - 160 > 10 && xEntry.getDouble(0.0) - 160 < -10){
-			VisionPID();
-
-		}
-		if (xEntry.getDouble(0.0) == 0 && xEntry.getDouble(0.0) == 160 && xEntry.getDouble(0.0) == 320){
-			visionCorrectAmt = 0;
-		}
-		if (VcorrectStatus = false){
-			visionCorrectAmt = 0;
-		}
-
-		if (Left90 == true && Lstatus == false) {
-			Rstatus = false;
-			RMode = false;
-			ahrs.reset();
-			if(LMode){
-				Lstatus = false;
-				Ladjust = true;
-			} else if (Lstatus == false) {
-				Lstatus = true;
-				
-				Ladjust = false;
-			}
-		    LMode = true;
-		}else if (Left90 == false && Lstatus == true) {
-			LMode = false;
-		}
-
-		if (Ladjust == true){
-			Lturn90();
-		}
-		if (Ladjust == false){
-			Lturn = 0;
-		}
-
-		if (Right90 == true && Rstatus == false) {
-			Lstatus = false;
-			LMode = false;
-			ahrs.reset();
-			if(RMode){
-				Rstatus = false;
-				Radjust = true;
-			} else if (Rstatus == false) {
-				Rstatus = true;
-				
-				Radjust = false;
-			}
-		    RMode = true;
-		}else if (Right90 == false && Rstatus == true) {
-			RMode = false;
-		}
-
-		if (Radjust == true){
-			Rturn90();
-		}
-		if (Radjust == false){
-			Rturn = 0;
-		}
-
-		System.out.println(distance);
-		System.out.println(distance1);
+		
 		if (encoderReset) {
 			EncLeft.reset();
 			EncRight.reset();
 		}
-
 		/*driving logic*/
 		forward = Deadband(forward);
 		turn = Deadband(turn);
 		forward *= sensitivity;
 		turn *= sensitivity;
+		double rocketAngleLeft = hatchAngle+90;
+		double RawAngle = ahrs.getYaw();
+		double currentAngle = RawAngle + 180;
+		double error = Math.abs(rocketAngleLeft) - Math.abs(currentAngle);
+		double turnAdd=0;
 
-		_drive.arcadeDrive(turn+visionCorrectAmt, forward);
+		if (angleButton) {
+			hatchAngle = ahrs.getYaw(); //logs "master angle" to find other angles on game field
+			System.out.println(currentAngle); //print angle
+			System.out.println(RawAngle);
+		}
+		if (rocketRightButton) {//rocket right angle
+			if (Math.abs(error)>=40) {
+				turnAdd = -0.5;
+				System.out.println("turning to angle" + error);
+			}
+			else if (Math.abs(error)<40){
+				if (currentAngle<rocketAngleLeft) {
+					turnAdd = 0.43;
+					if (error<10) {
+						turnAdd = 0;
+						System.out.println("Angle Reached");
+					}
+				}
+				else if (currentAngle>=rocketAngleLeft) {
+					turnAdd = -0.43;
+					if (error<10) {
+						turnAdd = 0;
+						System.out.println("Angle Reached");
+					}
+				}
+				turnAdd = 0.43;
+				System.out.println("precise mode" + error);
+			}
+		}
+
+		//arm control
+		if (armButton == true) {
+			_rightServo.setAngle(135);
+			_leftServo.setAngle(135);
+		}
+		else if (armButton == false) {
+			_rightServo.setAngle(45);
+			_leftServo.setAngle(45);
+		}
+
+		//gyro pid processing
+		_drive.arcadeDrive(turn+rcw+visionCorrectAmt+turnAdd, forward);
 	}
 
 	// Deadband 5 percent, used on the gamepad
@@ -327,54 +299,5 @@ public class Robot extends TimedRobot {
 		
 		/* Outside deadband */
 		return 0;
-	}
-	
-	public void VisionPID(){
-		Vdifference = xEntry.getDouble(0.0) - 160;
-		this.pre_Verror = Vdifference;
-		if (Vdifference < 80 && Vdifference > -80){
-			this.Vintegral +=(Vdifference*0.02);
-		} else {
-			this.Vintegral = 0;
-		}
-		Vderivative = (Vdifference - this.previous_error)/0.02;
-		if (Vdifference > 100 || Vdifference < -100){
-			this.visionCorrectAmt = 0.7;
-		}else if(Vdifference < 100 && Vdifference > -100){
-			this.visionCorrectAmt = Vp*Vdifference + Vi*Vintegral + Vd*Vdifference;
-		}
-	}
-	public void Rturn90(){
-		Rdifference = Rdesire - ahrs.getYaw();
-		if (Rdifference < 40) {
-			this.Rintegral +=(Rdifference *0.02);
-
-		}else{
-			this.Rintegral = 0;
-		}
-		this.Rp_error = Rdifference;
-		Rderivative = (Rdifference - Rp_error);
-		if (Rdifference > 50){
-			this.Rturn = 0.7;
-		}else if(Rdifference < 50){
-			this.Rturn = Rdifference*Tp + Rintegral*Ti + Rderivative*Td;
-		}
-	}
-	public void Lturn90(){
-		Ldifference = Fdesire - ahrs.getYaw();
-		if (Ldifference < 40) {
-			this.Lintegral +=(Ldifference *0.02);
-
-		}else{
-			this.Lintegral = 0;
-		}
-		this.Lp_error = Ldifference;
-		Lderivative = (Ldifference - Lp_error);
-		if (Ldifference > 50){
-			this.Lturn = 0.7;
-		}else if(Ldifference < 50){
-			this.Lturn = Ldifference*Tp + Lintegral*Ti + Lderivative*Td;
-		}
-
 	}
 }
