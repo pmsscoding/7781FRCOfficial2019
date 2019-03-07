@@ -6,7 +6,7 @@ import edu.wpi.first.wpilibj.Counter.Mode;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.I2C;
+import edu.wpi.first.wpilibj.SPI;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
 import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
@@ -14,7 +14,6 @@ import edu.wpi.first.wpilibj.Servo;
 import edu.wpi.first.wpilibj.SerialPort;
 import com.kauailabs.navx.IMUProtocol.GyroUpdate;
 import com.kauailabs.navx.frc.AHRS;
-
 import com.kauailabs.navx.frc.*;
 import com.ctre.phoenix.motorcontrol.InvertType;
 import edu.wpi.first.wpilibj.TimedRobot;
@@ -38,20 +37,36 @@ public class Robot extends TimedRobot {
 	WPI_VictorSPX _rightSlave1 = new WPI_VictorSPX(5);
 	DifferentialDrive _drive = new DifferentialDrive(_frontLeftMotor, _frontRightMotor);
 	
+	//networktable
+	NetworkTableEntry xEntry;
+
 	//encoder
 	SerialPort serial = new SerialPort(123, SerialPort.Port.kOnboard);
 	Encoder EncRight = new Encoder(0, 1, false, Encoder.EncodingType.k4X);
 	Encoder EncLeft = new Encoder(2, 3, true, Encoder.EncodingType.k4X);
-	
+	SerialPort ser = new SerialPort(9600, SerialPort.Port.kMXP);
 	DigitalInput leftTurn = new DigitalInput(4);
 	DigitalInput rightTurn = new DigitalInput(5);
 
 	//GYRO and PID setting
 	double setangle = 0;
-	double integral, previous_error, rcw, derivative = 0;
+	double integral, previous_error, rcw, derivative, pre_Verror, Vintegral, Vderivative, Vdifference = 0;
+	double Rdifference, Ldifference, Rintegral, Lintegral, Rderivative, Lderivative = 0;
 	double P = 0.02;
 	double I = 0.05;
 	double D = 0.05;
+	double Vp = 0.02;
+	double Vi = 0.05;
+	double Vd = 0.05;
+	double Tp = 0.04;
+	double Ti = 0.1;
+	double Td = 0.1;
+	double Lp_error = 0;
+	double Rp_error = 0;
+	double Rturn = 0;
+	double Lturn = 0;
+	double visionCorrectAmt = 0;
+	double SetTurn = 0;
 	AHRS ahrs;
 	//Networktable variables
 	NetworkTableEntry xEntry;
@@ -98,13 +113,15 @@ public class Robot extends TimedRobot {
 		_leftSlave1.setInverted(InvertType.FollowMaster);
 		_rightSlave1.setInverted(InvertType.FollowMaster);
 		setangle = ahrs.getYaw();
+		
 		c.setClosedLoopControl(false);
+		_rightServo.setAngle(0);
+		_leftServo.setAngle(0);
 	}
 	
 	boolean compresserButtonState = false;
 	boolean compressorStatus = false;
 	boolean pistonButtonState = false;
-	boolean armButtonState = false;
 	boolean pistonStatus = false;
 	float hatchAngle;
 	float rocketAngleRight;
@@ -116,9 +133,13 @@ public class Robot extends TimedRobot {
     	System.out.println("This is x:" + x);
 
 		// Gamepad processing	
+		boolean Right90 = _gamepad.getRawButton(4);
+		boolean Left90 = _gamepad.getRawButton(6);
+		boolean toptrigger = _gamepad.getRawButton(11); 
+		boolean encoderReset = _gamepad.getRawButton(7);
+		
 		boolean compressorButton = _gamepad.getRawButton(5);
-		boolean armButton = _gamepad.getRawButton(4);
-		boolean encoderReset = _gamepad.getRawButton(3);
+		boolean VisionButton = _gamepad.getRawButton(3);
 		double forward = -1 * _gamepad.getY();
 		double turn = _gamepad.getTwist();
 		boolean trigger = _gamepad.getTrigger();
@@ -127,7 +148,6 @@ public class Robot extends TimedRobot {
 		boolean rocketLeftButton = _gamepad.getRawButton(9);
 		boolean rocketRightButton = _gamepad.getRawButton(10);
 		double sensitivity =1-( _gamepad.getThrottle() + 1)/2;
-		boolean visionButton = _gamepad.getRawButton(6);
 		
 		double distance = EncLeft.getRaw();
 		double distance1 = EncRight.getRaw();
@@ -135,6 +155,8 @@ public class Robot extends TimedRobot {
 		// status
 		boolean autoadjust = false;
 
+		// servo arm control
+		
 		/*
 		How buttonState works:
 		getRawButton() will periodically produce true/false
@@ -176,6 +198,22 @@ public class Robot extends TimedRobot {
 			compresserButtonState = true;
 		}else if (compressorButton == false && compresserButtonState == true) {
 			compresserButtonState = false;
+		}
+
+		if (TurnButton == true && ServoButtonState == false) { //1 press for on off
+			if (ServoStatus) {
+				ServoStatus = false;
+				_rightServo.setAngle(0);
+				_leftServo.setAngle(0);
+			} else if (ServoStatus == false) {
+				ServoStatus = true;
+				
+				_rightServo.setAngle(90);
+				_leftServo.setAngle(90);
+			}
+			ServoButtonState = true;
+		}else if (TurnButton == false && ServoButtonState == true) {
+			ServoButtonState = false;
 		}
 
 		//piston extend and retract
@@ -250,6 +288,7 @@ public class Robot extends TimedRobot {
 		//gyro pid processing
 		_drive.arcadeDrive(turn+rcw+visionCorrectAmt+turnAdd, forward);
 	}
+
 	// Deadband 5 percent, used on the gamepad
 	double Deadband(double value) {
 		/* Upper deadband */
